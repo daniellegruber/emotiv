@@ -3,7 +3,7 @@ import json
 from websocket import create_connection
 import ssl
 import time
-import pyautogui
+import pyautogui # a library that will allow Python to control and manage cursor and keyboard input
 
 ########################
 #   EEG Application    #
@@ -80,39 +80,51 @@ receivedData.send(json.dumps({
 
 print(receivedData.recv())
 
-
+# Prompts the user for a command and trains it
+# Sends two requests to the WebSocket:
+# The first initializes training
+# The second accepts the training
 def train_command(request):
     print("Training " + request + " command...")
-    receivedData.send(json.dumps( {
-     "jsonrpc": "2.0", 
-     "method": "training", 
-     "params": {
-        "cortexToken":token,
-        "detection":"mentalCommand",
-        "action":request,
-        "status":"start"
-     },
-     "id": 1
+
+    # Initialize training
+    receivedData.send(json.dumps({
+        "jsonrpc": "2.0",
+        "method": "training",
+        "params": {
+            "cortexToken":token,
+            "detection":"mentalCommand",
+            "action":request,
+            "status":"start",
+            "session": session_id
+        },
+        "id": 1
      }))
 
+    # Delay the time between starting the training and accepting it,
+    # as we want data across a long period of time.
+    # Note: the program will not pass this stage if you receive
+    # event "failed", meaning the data collected during training is of poor quality
     print(receivedData.recv())
     time.sleep(5)
     print(receivedData.recv())
     time.sleep(10)
     print(receivedData.recv())
 
-    receivedData.send(json.dumps( {
-     "jsonrpc": "2.0", 
-     "method": "training", 
-     "params": {
-         "cortexToken":token,
-         "detection":"mentalCommand",
-         "action":request,
-         "status":"accept"
-     },
-     "id": 1
-     }
-    ))
+    print("Accept training...")
+    # Accept training
+    receivedData.send(json.dumps({
+        "jsonrpc": "2.0",
+        "method": "training",
+        "params": {
+            "cortexToken": token,
+            "detection": "mentalCommand",
+            "action": request,
+            "status": "accept",
+            "session": session_id
+        },
+        "id": 1
+    }))
 
     print(receivedData.recv())
     time.sleep(2)
