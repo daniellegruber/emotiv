@@ -1,3 +1,7 @@
+# First, we must send an authorization request in this auth.py file
+# and receive a response. Authorizing will generate a token, which is
+# the key that allows us to execute other requests.
+
 import json
 import ssl
 from websocket import create_connection

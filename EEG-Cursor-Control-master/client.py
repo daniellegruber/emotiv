@@ -1,3 +1,6 @@
+# After running auth.py, we can use this client.py file
+# to run the application.
+
 from auth import token
 import json
 from websocket import create_connection
@@ -6,8 +9,7 @@ import time
 import pyautogui # a library that will allow Python to control and manage cursor and keyboard input
 
 ########################
-#   EEG Application    #
-#   Kevin Cui          #
+# Adapted from Kevin Cui
 ########################
 
 thought = ""
@@ -16,6 +18,9 @@ print("\n============================")
 print("Connecting to websocket...")
 #receivedData = create_connection("wss://emotivcortex.com:54321", sslopt={"cert_reqs": ssl.CERT_NONE})
 receivedData = create_connection("wss://localhost:6868", sslopt={"cert_reqs": ssl.CERT_NONE})
+
+# After initializing the WebSocket object and authorizing a token from the other file,
+# we can follow the Cortex API and create a session, which we will subscribe to.
 
 print("Checking headset connectivity...")
 
@@ -109,22 +114,46 @@ def train_command(request):
     time.sleep(5)
     print(receivedData.recv())
     time.sleep(10)
-    print(receivedData.recv())
+    #print(receivedData.recv())
 
-    print("Accept training...")
+    print("\nEVENT STATUS")
+    event_status = json.loads(receivedData.recv())["sys"][1]
+    print(event_status)
+
+    # Note: Danielle modified original code here. Before, the code always
+    # accepted the training. Now, 1) accept training if event was successful
+    # and 2) reject/reset the training otherwise.
+
     # Accept training
-    receivedData.send(json.dumps({
-        "jsonrpc": "2.0",
-        "method": "training",
-        "params": {
-            "cortexToken": token,
-            "detection": "mentalCommand",
-            "action": request,
-            "status": "accept",
-            "session": session_id
-        },
-        "id": 1
-    }))
+    if event_status == "MC_Succeeded":
+        print("Accept training...")
+        receivedData.send(json.dumps({
+            "jsonrpc": "2.0",
+            "method": "training",
+            "params": {
+                "cortexToken": token,
+                "detection": "mentalCommand",
+                "action": request,
+                "status": "accept",
+                "session": session_id
+            },
+            "id": 1
+        }))
+    # Reset/reject training
+    elif event_status == "MC_Failed":
+        print("Training failed, resetting...")
+        receivedData.send(json.dumps({
+            "jsonrpc": "2.0",
+            "method": "training",
+            "params": {
+                "cortexToken": token,
+                "detection": "mentalCommand",
+                "action": request,
+                "status": "reset", # or "reject"
+                "session": session_id
+            },
+            "id": 1
+        }))
 
     print(receivedData.recv())
     time.sleep(2)
@@ -142,6 +171,7 @@ while True:
         except ValueError:
             print("Invalid input")
 
+    # Training phase (train commands)
     if startCode == "1":
         while True:
             try:
@@ -154,8 +184,15 @@ while True:
                     print("Invalid input")
             except:
                 print("Invalid input")
-                
+
+    # Testing phase (listen for commands)
     elif startCode == "2":
+        # Once we have completely recorded all the commands are, we can now
+        # listen for commands. Request to log in, subscribe, set up a profile,
+        # and get a map of the available commands. It is very important to set
+        # streams to "com". The stream type determines what the EEG will be recording.
+        # When it is set to "com", the stream will record trained commands in the
+        # WebSocket.
 
         print("Getting USER login...")
 
@@ -195,6 +232,12 @@ while True:
 
         print("Profile Set-up:", receivedData.recv())
 
+        # The mentalCommandBrainMap method returns the brain map of a profile.
+        # The brain map is a graphic representation of the mental command training
+        # of the user. It indicates which actions are most distinct from each other
+        # and from the neutral state as measured by how often the training data is
+        # misclassified. The better training you do, the more separated the coordinates
+        # will be.
         receivedData.send(json.dumps({
             "jsonrpc": "2.0",
             "method": "mentalCommandBrainMap",
